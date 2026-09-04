@@ -1,0 +1,40 @@
+# AGENTS.md - working conventions for humans and AI agents in this repo
+
+(README.md explains what the project is and how to use it; this file only holds the rules for
+changing it. Do not duplicate README content here.)
+
+## Layout
+
+- `src/snake4d/` is the package; `main.py` is the only orchestrator (`uv run snake4d <phase>`).
+  Each phase module exposes `run(cfg: Config)`.
+- One physics implementation: `physics.py:SnakeBatch`. `env.py` (single Gymnasium env) and
+  `vec_env.py` (batched SB3 VecEnv) are thin adapters over it - never re-implement a rule.
+- Configuration is the flat dataclass in `config.py`; every knob is a `SNAKE_<FIELD>` key in
+  `.env` (see `.env.example`). Experiments are `experiments/expNN_<name>.env` override files.
+- Tests live in `tests/` (pytest markers `slow`, `gpu`). Docs in `docs/`, experiment write-ups in
+  `reports/experiments/`, generated figures in `reports/figures/`, run artefacts in `runs/` (ignored).
+
+## Commands
+
+```bash
+uv sync --all-groups
+uv run pytest -m "not slow and not gpu"
+uv run pytest -m gpu
+uv run ruff check src tests
+uv run snake4d <bench|play|train|evaluate|report|pipeline> [--env-file FILE] [--set field=value]
+```
+
+## Rules
+
+- Simplest working version first, then measure (`bench`), then iterate; keep line counts low.
+- Every file starts with a docstring giving local purpose and global context; every function has a
+  docstring; non-obvious lines cite the doc/repo URL they are grounded in.
+- Reuse library code before writing any (SB3 `VecMonitor`, `LinearSchedule`, `make_vec_env`,
+  sb3-contrib `evaluate_policy`, `pygame.surfarray`, `plt.imsave`).
+- Log through `logging_utils.setup_logging` (timestamped file + terminal); never bare `print`.
+- Never copy code from unlicensed repositories (see THIRD_PARTY_NOTICES.md); `markdown-pdf` (AGPL)
+  stays in the `docs` dependency group.
+- TDD: write or extend a test in the same PR as the code; run the full pipeline like a user and read
+  `runs/<run>/log.txt` before calling anything done.
+- Git: feature branch per phase, meaningful commits, PR merged with `gh pr merge --merge`; never
+  commit `.env`, `runs/`, `.venv/`.
