@@ -1,0 +1,54 @@
+"""The single orchestrator: ``uv run snake4d <phase> [--env-file FILE] [--set field=value ...]``.
+
+Global context: every user-facing action is a *phase* implemented as ``run(cfg: Config)`` in its own
+module.  This file only parses the command line, builds the Config (defaults -> .env -> experiment
+env file -> --set) and calls the phase; all real work and all logging happen inside the phases.
+
+Local notes: phases are resolved lazily by import path so that e.g. ``play`` never imports torch and
+``train`` never imports pygame (https://docs.python.org/3/library/importlib.html#importlib.import_module).
+"""
+
+import argparse
+import importlib
+from collections.abc import Callable
+
+from snake4d.config import Config
+
+PHASES: dict[str, str] = {
+    "bench": "snake4d.benchmark:run",      # environment/PPO throughput grid -> docs/benchmark.md
+    "play": "snake4d.play:run",            # human play in a pygame window
+    "train": "snake4d.train:run",          # MaskablePPO training with curriculum + evaluation
+    "evaluate": "snake4d.evaluation:run",  # scripted policy or saved model -> summary.json
+    "report": "snake4d.report:run",        # figures, tables, all_experiments.md, optional PDF
+    "pipeline": "snake4d.main:pipeline",   # train -> evaluate -> report
+}
+
+
+def resolve(spec: str) -> Callable[[Config], object]:
+    """Turn ``"package.module:function"`` into the callable, importing the module on demand."""
+    module_name, function_name = spec.split(":")
+    return getattr(importlib.import_module(module_name), function_name)
+
+
+def pipeline(cfg: Config) -> None:
+    """Run the full user journey after the one-off benchmark: train, evaluate, report."""
+    for name in ("train", "evaluate", "report"):
+        resolve(PHASES[name])(cfg)
+
+
+def main(argv: list[str] | None = None) -> object:
+    """Parse the command line, build the Config and dispatch to the requested phase."""
+    parser = argparse.ArgumentParser(prog="snake4d", description=__doc__.splitlines()[0])
+    parser.add_argument("phase", choices=PHASES)
+    parser.add_argument("--env-file", help="experiment overrides, e.g. experiments/exp02.env")
+    parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
+                        help="override any Config field (repeatable), e.g. --set size=3")
+    parser.add_argument("--pdf", action="store_true", help="report: also build reports/paper.pdf")
+    args = parser.parse_args(argv)
+    cfg = Config.from_env(args.env_file, tuple(args.set))
+    phase = resolve(PHASES[args.phase])
+    return phase(cfg, pdf=True) if args.phase == "report" and args.pdf else phase(cfg)
+
+
+if __name__ == "__main__":  # `uv run python -m snake4d.main train`
+    main()
