@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local configuration with machine-specific values (copy .env.example instead)
+.env
+
+# Training runs: logs, progress.csv, TensorBoard events, checkpoints (small summaries are copied
+# into reports/data/ by `snake4d report`)
+runs/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/

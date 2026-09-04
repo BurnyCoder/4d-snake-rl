@@ -1,0 +1,75 @@
+# pyproject.toml - project metadata, dependencies and tool settings for snake4d.
+#
+# Global context: uv manages the local .venv, the Python pin (.python-version = 3.13) and uv.lock;
+# every install in this repo flows through this file (https://docs.astral.sh/uv/concepts/projects/).
+# Local notes: torch must be resolved from PyTorch's CUDA 13.0 index because the PyPI Windows wheel
+# is CPU-only (https://docs.astral.sh/uv/guides/integration/pytorch/); markdown-pdf is AGPL-3.0 and
+# therefore lives in a docs-only dependency group, never in [project.dependencies].
+[project]
+name = "snake4d"
+version = "0.1.0"
+description = "N-dimensional (4D) snake game plus a MaskablePPO agent trained to fill the board"
+readme = "README.md"
+authors = [
+    { name = "BurnyCoder", email = "happymancz@email.cz" }
+]
+license = "MIT"
+# 3.13 pin: stable-baselines3/sb3-contrib 2.9.0 declare support up to 3.13 only
+# (https://pypi.org/pypi/stable-baselines3/2.9.0/json); numpy 2.5 needs >=3.12.
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "torch>=2.14.0",             # https://pytorch.org/blog/pytorch-2-14-release-blog/ (cu130 wheels, sm_120)
+    "gymnasium>=1.3.0",          # https://gymnasium.farama.org/api/env/
+    "stable-baselines3>=2.9.0",  # https://stable-baselines3.readthedocs.io/en/master/misc/changelog.html
+    "sb3-contrib>=2.9.0",        # https://sb3-contrib.readthedocs.io/en/master/modules/ppo_mask.html
+    "numpy>=2.5",                # https://numpy.org/doc/stable/
+    "pygame-ce>=2.5.8",          # https://pypi.org/project/pygame-ce/ (classic pygame lacks new wheels)
+    "pandas>=2.2",               # reads SB3 progress.csv for figures
+    "matplotlib>=3.11",          # learning-curve figures
+    "tensorboard>=2.21",         # SB3 "tensorboard" logger output format
+    "python-dotenv>=1.2",        # https://pypi.org/project/python-dotenv/
+]
+
+[project.scripts]
+# `uv run snake4d <phase>` -> the thin orchestrator in src/snake4d/main.py
+snake4d = "snake4d.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "ruff>=0.13",
+]
+# AGPL-3.0 tool used only to build reports/paper.pdf: `uv run --group docs snake4d report --pdf`
+docs = [
+    "markdown-pdf>=1.13",
+]
+
+# Bind torch to the explicit CUDA 13.0 index (Blackwell/sm_120 SASS is only in cu130+ wheels).
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: multi-minute tests (deselect with -m 'not slow')",
+    "gpu: needs a CUDA device (deselect with -m 'not gpu')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, isort, bugbear, pyupgrade: https://docs.astral.sh/ruff/rules/
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
